@@ -40,6 +40,8 @@ jobs:
       - name: Build F-Droid index
         working-directory: fdroid
         run: |
+          mkdir -p repo metadata
+          find repo -type f -size 0 -delete   # fdroid rejects empty files such as .gitkeep
           fdroid update -c
           ls -la repo | head -30
       - name: Build website
