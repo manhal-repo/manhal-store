@@ -2,16 +2,19 @@ name: Build & Deploy
 on:
   workflow_dispatch:   # manual only: Actions tab > Run workflow, or: gh workflow run <file>
 permissions: { contents: read, pages: write, id-token: write }
-concurrency: { group: pages, cancel-in-progress: true }
+concurrency: { group: pages, cancel-in-progress: false }
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - name: Install fdroidserver
-        run: sudo apt-get update && sudo apt-get install -y fdroidserver
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install fdroidserver (pip: light and fast, no apt mirror)
+        run: pip install --upgrade pip && pip install fdroidserver
       - name: Prepare keystore + config
         working-directory: fdroid
         env:
@@ -22,6 +25,7 @@ jobs:
           echo "$KEYSTORE_B64" | base64 -d > keystore.jks
           cat > config.yml <<CFG
           repo_url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/repo
+          sdk_path: $ANDROID_HOME
           repo_name: "My App Store"
           repo_description: "My private F-Droid repository"
           archive_older: 0
@@ -35,7 +39,9 @@ jobs:
           chmod 600 config.yml
       - name: Build F-Droid index
         working-directory: fdroid
-        run: fdroid update -c
+        run: |
+          fdroid update -c
+          ls -la repo | head -30
       - name: Build website
         run: npm install && npm run build
       - name: Merge repo into site
