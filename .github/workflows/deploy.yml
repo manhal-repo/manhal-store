@@ -13,7 +13,7 @@ jobs:
         with: { node-version: 20 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: Install fdroidserver (pip: light and fast, no apt mirror)
+      - name: Install fdroidserver via pip
         run: pip install --upgrade pip && pip install fdroidserver
       - name: Prepare keystore + config
         working-directory: fdroid
