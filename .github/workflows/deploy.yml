@@ -43,7 +43,12 @@ jobs:
           mkdir -p repo metadata
           find repo -type f -size 0 -delete   # fdroid rejects empty files such as .gitkeep
           fdroid update -c
-          ls -la repo | head -30
+          # the app and the website read index-v1.json; extract it from the signed jar if needed
+          if [ ! -f repo/index-v1.json ] && [ -f repo/index-v1.jar ]; then unzip -o repo/index-v1.jar index-v1.json -d repo; fi
+          test -f repo/index-v1.json || { echo "index-v1.json was not generated"; ls -la repo; exit 1; }
+          python3 -c "import json; d=json.load(open('repo/index-v1.json')); print('apps in index =', len(d['apps']))"
+          ls -la repo | head -40
+          ls -d repo/icons* 2>/dev/null || true
       - name: Build website
         run: npm install && npm run build
       - name: Merge repo into site
