@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Banner, Interstitial } from './Ads.jsx'
 
-const STORE_NAME = 'متجر تطبيقاتي'
+const STORE_NAME = 'متجر المنهل'
 const REPO_URL = new URL('repo', window.location.href.split('#')[0]).href
 
 const OSES = [
@@ -100,6 +100,12 @@ export default function App() {
   }
 
   useEffect(() => {
+    document.title = 'متجر المنهل | Manhal Store'
+    const l = document.querySelector("link[rel='icon']") || document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }))
+    l.type = 'image/svg+xml'; l.href = 'favicon.svg'
+  }, [])
+
+  useEffect(() => {
     loadAll().then(setItems).catch(() => setErr('تعذّر تحميل فهرس التطبيقات'))
   }, [])
 
@@ -114,7 +120,7 @@ export default function App() {
     <div className="wrap">
       <header>
         <h1>{STORE_NAME}</h1>
-        <p className="muted">تطبيقات لعدة أنظمة تشغيل. اختر نظامك لعرض ما يناسبه.</p>
+        <p className="muted">Manhal Store · تطبيقات لعدة أنظمة تشغيل. اختر نظامك لعرض ما يناسبه.</p>
       </header>
 
       <section className="card repo">

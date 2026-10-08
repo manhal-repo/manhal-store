@@ -1,0 +1,5 @@
+Manhal Store is a private app store that keeps all your apps in one place.
+
+- Browse Android, Windows, Linux, macOS and iOS apps with an OS filter.
+- Works with F-Droid, NetHunter Store and Tor Project repositories, and lets you add any other repository by URL.
+- Download, install and update apps with SHA-256 integrity checks.
