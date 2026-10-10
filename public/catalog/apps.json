@@ -1,1 +1,29 @@
-{ "apps": [] }
+{
+  "apps": [
+    {
+      "id": "com.devbelmel.mystore",
+      "name": "متجر المنهل",
+      "summary": "",
+      "description": "",
+      "categories": [
+        "Others"
+      ],
+      "downloads": [
+        {
+          "os": "linux",
+          "version": "1.0.0",
+          "size": 112540564,
+          "sha256": "5d3639d48b866666f634598a2676419983e46d79e8234e61ec38d5b22a174bf3",
+          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/ManhalStore-1.0.0-linux-x86_64.AppImage"
+        },
+        {
+          "os": "windows",
+          "version": "1.0.0",
+          "size": 81667306,
+          "sha256": "58967832864fb8acadd5efc1b55667ee3f3836781a7438f2e6ad8bb109d4c13b",
+          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/ManhalStore-1.0.0-win-x64.exe"
+        }
+      ]
+    }
+  ]
+}
