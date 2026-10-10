@@ -1,0 +1,71 @@
+name: Add desktop release
+on:
+  workflow_dispatch:
+    inputs:
+      src_repo: { default: "manhal-repo/manhal-desktop" }
+      tag:      { default: "desktop-1" }
+      app_id:   { default: "com.devbelmel.mystore" }
+      app_name: { default: "متجر المنهل" }
+      version:  { default: "1.0.0" }
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download from source release
+        env:
+          GH_TOKEN: ${{ secrets.SRC_TOKEN || github.token }}
+        run: |
+          gh release download "${{ inputs.tag }}" --repo "${{ inputs.src_repo }}" \
+            --pattern '*.exe' --pattern '*.AppImage' --dir dl
+          ls -lh dl
+
+      - name: Upload to store release "files"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view files >/dev/null 2>&1 || \
+            gh release create files --title Files --notes files
+          gh release upload files dl/* --clobber
+
+      - name: Update catalog
+        run: |
+          python3 - <<'EOF'
+          import json, os, hashlib
+          repo = os.environ["GITHUB_REPOSITORY"]
+          p = "public/catalog/apps.json"
+          data = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {"apps": []}
+          app = next((a for a in data["apps"] if a["id"] == "${{ inputs.app_id }}"), None)
+          if not app:
+              app = {"id": "${{ inputs.app_id }}", "name": "${{ inputs.app_name }}",
+                     "summary": "", "description": "", "categories": ["Others"],
+                     "downloads": []}
+              data["apps"].append(app)
+          for f in sorted(os.listdir("dl")):
+              osn = "windows" if f.endswith(".exe") else "linux"
+              b = open("dl/" + f, "rb").read()
+              app["downloads"] = [d for d in app["downloads"] if d["os"] != osn]
+              app["downloads"].append({
+                  "os": osn, "version": "${{ inputs.version }}", "size": len(b),
+                  "sha256": hashlib.sha256(b).hexdigest(),
+                  "url": f"https://github.com/{repo}/releases/download/files/{f}"})
+          os.makedirs(os.path.dirname(p), exist_ok=True)
+          json.dump(data, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+          EOF
+
+      - name: Commit and deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/catalog/apps.json
+          git commit -m "Add desktop builds ${{ inputs.version }}" || echo "no changes"
+          git push
+          gh workflow run deploy.yml
