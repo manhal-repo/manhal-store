@@ -2,11 +2,13 @@ name: Add desktop release
 on:
   workflow_dispatch:
     inputs:
-      src_repo: { default: "manhal-repo/manhal-desktop" }
-      tag:      { default: "desktop-1" }
-      app_id:   { default: "com.devbelmel.mystore" }
-      app_name: { default: "متجر المنهل" }
-      version:  { default: "1.0.0" }
+      src_repo:    { default: "manhalbasir/UniversalPrintServer" }
+      tag:         { default: "v1.0.0" }
+      app_id:      { default: "com.devbelmel.universalprinter" }
+      app_name:    { default: "Universal Printer" }
+      version:     { default: "1.0.0" }
+      summary:     { default: "طباعة من أندرويد إلى أي طابعة عبر حاسوب ويندوز" }
+      description: { default: "برنامج ويندوز يحوّل حاسوبك إلى خادم طباعة لتطبيق Universal Printer على أندرويد. يتضمن بيئة .NET 9 فلا يحتاج تثبيتها." }
 
 permissions:
   contents: write
@@ -15,6 +17,12 @@ permissions:
 jobs:
   add:
     runs-on: ubuntu-latest
+    env:
+      APP_ID: ${{ inputs.app_id }}
+      APP_NAME: ${{ inputs.app_name }}
+      VERSION: ${{ inputs.version }}
+      SUMMARY: ${{ inputs.summary }}
+      DESCRIPTION: ${{ inputs.description }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,20 +47,25 @@ jobs:
           python3 - <<'EOF'
           import json, os, hashlib
           repo = os.environ["GITHUB_REPOSITORY"]
+          app_id = os.environ["APP_ID"]
           p = "public/catalog/apps.json"
           data = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {"apps": []}
-          app = next((a for a in data["apps"] if a["id"] == "${{ inputs.app_id }}"), None)
+          app = next((a for a in data["apps"] if a["id"] == app_id), None)
           if not app:
-              app = {"id": "${{ inputs.app_id }}", "name": "${{ inputs.app_name }}",
+              app = {"id": app_id, "name": os.environ["APP_NAME"],
                      "summary": "", "description": "", "categories": ["Others"],
                      "downloads": []}
               data["apps"].append(app)
+          if not app.get("summary"):
+              app["summary"] = os.environ["SUMMARY"]
+          if not app.get("description"):
+              app["description"] = os.environ["DESCRIPTION"]
           for f in sorted(os.listdir("dl")):
               osn = "windows" if f.endswith(".exe") else "linux"
               b = open("dl/" + f, "rb").read()
               app["downloads"] = [d for d in app["downloads"] if d["os"] != osn]
               app["downloads"].append({
-                  "os": osn, "version": "${{ inputs.version }}", "size": len(b),
+                  "os": osn, "version": os.environ["VERSION"], "size": len(b),
                   "sha256": hashlib.sha256(b).hexdigest(),
                   "url": f"https://github.com/{repo}/releases/download/files/{f}"})
           os.makedirs(os.path.dirname(p), exist_ok=True)
