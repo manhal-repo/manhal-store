@@ -24,6 +24,24 @@
           "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/ManhalStore-1.0.0-win-x64.exe"
         }
       ]
+    },
+    {
+      "id": "com.devbelmel.universalprinter",
+      "name": "Universal Printer",
+      "summary": "طباعة من أندرويد إلى أي طابعة عبر حاسوب ويندوز",
+      "description": "برنامج ويندوز يحوّل حاسوبك إلى خادم طباعة لتطبيق Universal Printer على أندرويد. يتضمن بيئة .NET 9 فلا يحتاج تثبيتها.",
+      "categories": [
+        "Others"
+      ],
+      "downloads": [
+        {
+          "os": "windows",
+          "version": "1.0.0",
+          "size": 63807627,
+          "sha256": "7d8f9172c19deb76d93388daa562c97457f8b8076e9047bdb7369cf453a31ffd",
+          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/UniversalPrintServer-1.0.0-win-x64.exe"
+        }
+      ]
     }
   ]
 }
