@@ -16,7 +16,7 @@ jobs:
       - name: Install fdroidserver via pip
         run: pip install --upgrade pip && pip install fdroidserver
       - name: Prepare keystore + config
-        working-directory: fdroid
+        working-directory: manhal
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
@@ -38,7 +38,7 @@ jobs:
           sed -i 's/^          //' config.yml
           chmod 600 config.yml
       - name: Build F-Droid index
-        working-directory: fdroid
+        working-directory: manhal
         run: |
           mkdir -p repo metadata
           find repo -type f -size 0 -delete   # fdroid rejects empty files such as .gitkeep
@@ -52,7 +52,7 @@ jobs:
       - name: Build website
         run: npm install && npm run build
       - name: Merge repo into site
-        run: cp -r fdroid/repo dist/repo
+        run: cp -r manhal/repo dist/repo
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
   deploy:

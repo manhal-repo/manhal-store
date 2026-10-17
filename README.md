@@ -27,8 +27,8 @@ git push -u origin main
 Settings ← Pages ← Source: **GitHub Actions**.
 
 ## 5) إضافة تطبيق
-1. ضع ملف `app.apk` داخل `fdroid/repo/` (اسم الملف: `package_versionCode.apk` أفضل).
-2. اختياري محليًا: `cd fdroid && fdroid update -c` لإنشاء `metadata/<package>.yml` ثم عدّل الاسم/الوصف/الأيقونة.
+1. ضع ملف `app.apk` داخل `manhal/repo/` (اسم الملف: `package_versionCode.apk` أفضل).
+2. اختياري محليًا: `cd manhal && fdroid update -c` لإنشاء `metadata/<package>.yml` ثم عدّل الاسم/الوصف/الأيقونة.
 3. `git add . && git commit -m "add app" && git push`
 4. بعد دقائق يصبح الموقع على `https://USERNAME.github.io/REPO/` والمستودع على `.../REPO/repo`.
 
@@ -39,7 +39,7 @@ F-Droid / NetHunter Store: الإعدادات ← المستودعات ← + ←
 ```bash
 npm install && npm run dev
 ```
-(للمعاينة المحلية انسخ `fdroid/repo` إلى `public/repo`.)
+(للمعاينة المحلية انسخ `manhal/repo` إلى `public/repo`.)
 
 ## ملاحظات
 - لا ترفع `config.yml` ولا `keystore.jks` (موجودان في `.gitignore`).

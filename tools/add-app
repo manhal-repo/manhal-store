@@ -23,7 +23,7 @@ fi
 cd "$SITE_DIR"
 REMOTE=$(git remote get-url origin | sed -E 's#.*github.com[:/]##; s#\.git$##')
 if [ "$OS" = android ]; then
-  cp "$FILE" fdroid/repo/
+  cp "$FILE" manhal/repo/
 else
   SAFE=$(echo "$base" | tr ' ' '_'); cp "$FILE" "/tmp/$SAFE"
   gh release view files --repo "$REMOTE" >/dev/null 2>&1 || gh release create files --repo "$REMOTE" --title "Files" --notes "Binary downloads"
