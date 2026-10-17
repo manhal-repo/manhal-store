@@ -1,64 +1,245 @@
 name: Build & Deploy
+
 on:
-  workflow_dispatch:   # manual only: Actions tab > Run workflow, or: gh workflow run <file>
-permissions: { contents: read, pages: write, id-token: write }
-concurrency: { group: pages, cancel-in-progress: false }
+workflow_dispatch:
+
+permissions:
+contents: read
+pages: write
+id-token: write
+
+concurrency:
+group: pages
+cancel-in-progress: false
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: Install fdroidserver via pip
-        run: pip install --upgrade pip && pip install fdroidserver
-      - name: Prepare keystore + config
-        working-directory: manhal
-        env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          echo "$KEYSTORE_B64" | base64 -d > keystore.jks
-          cat > config.yml <<CFG
-          repo_url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/repo
-          sdk_path: $ANDROID_HOME
-          repo_name: "My App Store"
-          repo_description: "My private F-Droid repository"
-          archive_older: 0
-          keystore: keystore.jks
-          repo_keyalias: $KEY_ALIAS
-          keystorepass: $KEYSTORE_PASS
-          keypass: $KEYSTORE_PASS
-          keydname: "CN=MyRepo, OU=Apps, O=Me, C=US"
-          CFG
-          sed -i 's/^          //' config.yml
-          chmod 600 config.yml
-      - name: Build F-Droid index
-        working-directory: manhal
-        run: |
-          mkdir -p repo metadata
-          find repo -type f -size 0 -delete   # fdroid rejects empty files such as .gitkeep
-          fdroid update -c
-          # the app and the website read index-v1.json; extract it from the signed jar if needed
-          if [ ! -f repo/index-v1.json ] && [ -f repo/index-v1.jar ]; then unzip -o repo/index-v1.jar index-v1.json -d repo; fi
-          test -f repo/index-v1.json || { echo "index-v1.json was not generated"; ls -la repo; exit 1; }
-          python3 -c "import json; d=json.load(open('repo/index-v1.json')); print('apps in index =', len(d['apps']))"
-          ls -la repo | head -40
-          ls -d repo/icons* 2>/dev/null || true
-      - name: Build website
-        run: npm install && npm run build
-      - name: Merge repo into site
-        run: cp -r manhal/repo dist/repo
-      - uses: actions/upload-pages-artifact@v3
-        with: { path: dist }
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
-    steps:
-      - id: d
-        uses: actions/deploy-pages@v4
+build:
+runs-on: ubuntu-latest
+timeout-minutes: 20
+
+steps:
+  - uses: actions/checkout@v4
+
+  - uses: actions/setup-node@v4
+    with:
+      node-version: 20
+
+  - uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
+
+  - name: Install F-Droid server
+    run: |
+      pip install --upgrade pip
+      pip install fdroidserver
+
+  - name: Prepare Android tools
+    run: |
+      echo "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)" >> "$GITHUB_PATH"
+
+  - name: Prepare keystore and config
+    working-directory: manhal
+    env:
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+      KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+    run: |
+      test -n "$KEYSTORE_B64" || { echo "Missing KEYSTORE_B64"; exit 1; }
+      test -n "$KEYSTORE_PASS" || { echo "Missing KEYSTORE_PASS"; exit 1; }
+      test -n "$KEY_ALIAS" || { echo "Missing KEY_ALIAS"; exit 1; }
+
+      echo "$KEYSTORE_B64" | base64 -d > keystore.jks
+
+      cat > config.yml <<CFG
+      repo_url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/repo
+      sdk_path: $ANDROID_HOME
+      repo_name: "My App Store"
+      repo_description: "My private F-Droid repository"
+      archive_older: 0
+      keystore: keystore.jks
+      repo_keyalias: $KEY_ALIAS
+      keystorepass: $KEYSTORE_PASS
+      keypass: $KEYSTORE_PASS
+      keydname: "CN=MyRepo, OU=Apps, O=Me, C=US"
+      CFG
+
+      sed -i 's/^          //' config.yml
+      chmod 600 config.yml
+
+  - name: Clean repository using approved package list
+    working-directory: .
+    run: |
+      set -euo pipefail
+
+      ALLOWLIST="manhal/allowed-packages.txt"
+      REPO="manhal/repo"
+      METADATA="manhal/metadata"
+
+      test -s "$ALLOWLIST" || {
+        echo "ERROR: allowed-packages.txt is missing or empty."
+        exit 1
+      }
+
+      mkdir -p "$REPO" "$METADATA"
+
+      # Validate package IDs and ignore blank lines/comments.
+      grep -Ev '^[[:space:]]*(#|$)' "$ALLOWLIST" \
+        | tr -d '\r' \
+        | sort -u > /tmp/allowed-packages.txt
+
+      test -s /tmp/allowed-packages.txt || {
+        echo "ERROR: no approved packages found."
+        exit 1
+      }
+
+      if grep -Ev '^[A-Za-z0-9_]+([.][A-Za-z0-9_]+)+$' /tmp/allowed-packages.txt; then
+        echo "ERROR: invalid package ID in allowlist."
+        exit 1
+      fi
+
+      echo "Approved packages:"
+      cat /tmp/allowed-packages.txt
+
+      # Remove APKs whose actual embedded package ID is not approved.
+      shopt -s nullglob
+      for apk in "$REPO"/*.apk "$REPO"/*.APK; do
+        package=$(
+          aapt dump badging "$apk" 2>/dev/null \
+            | sed -n "s/^package: name='\([^']*\)'.*/\1/p" \
+            | head -1
+        )
+
+        if [ -z "$package" ]; then
+          echo "ERROR: cannot read package ID from $apk"
+          exit 1
+        fi
+
+        if ! grep -Fxq "$package" /tmp/allowed-packages.txt; then
+          echo "Removing unapproved APK: $apk ($package)"
+          rm -f -- "$apk"
+        fi
+      done
+
+      # Remove metadata for packages that are not approved.
+      for dir in "$METADATA"/*; do
+        [ -d "$dir" ] || continue
+        package=$(basename "$dir")
+
+        if ! grep -Fxq "$package" /tmp/allowed-packages.txt; then
+          echo "Removing unapproved metadata: $package"
+          rm -rf -- "$dir"
+        fi
+      done
+
+      # Every approved package must have metadata and at least one APK.
+      while IFS= read -r package; do
+        [ -n "$package" ] || continue
+
+        if [ ! -d "$METADATA/$package" ]; then
+          echo "ERROR: metadata missing for approved package: $package"
+          exit 1
+        fi
+
+        found=0
+        for apk in "$REPO"/*.apk "$REPO"/*.APK; do
+          [ -f "$apk" ] || continue
+          actual=$(
+            aapt dump badging "$apk" 2>/dev/null \
+              | sed -n "s/^package: name='\([^']*\)'.*/\1/p" \
+              | head -1
+          )
+          if [ "$actual" = "$package" ]; then
+            found=1
+            break
+          fi
+        done
+
+        if [ "$found" -ne 1 ]; then
+          echo "ERROR: no APK found for approved package: $package"
+          exit 1
+        fi
+      done < /tmp/allowed-packages.txt
+
+      echo "Repository cleanup completed."
+      echo "Remaining APK files:"
+      find "$REPO" -maxdepth 1 -type f -iname '*.apk' -printf '%f\n' | sort
+
+  - name: Build fresh F-Droid index
+    working-directory: manhal
+    run: |
+      set -euo pipefail
+
+      # Remove previously generated indexes so stale indexes cannot be reused.
+      rm -f repo/index-v1.json repo/index-v1.jar
+      rm -f repo/index-v2.json repo/index-v2.jar
+      rm -f repo/entry.json repo/entry.jar
+
+      find repo -type f -size 0 -delete
+
+      fdroid update -c
+
+      if [ ! -f repo/index-v1.json ] && [ -f repo/index-v1.jar ]; then
+        unzip -o repo/index-v1.jar index-v1.json -d repo
+      fi
+
+      test -f repo/index-v1.json || {
+        echo "ERROR: index-v1.json was not generated."
+        ls -la repo
+        exit 1
+      }
+
+      python3 - <<'PY'
+      import json
+      from pathlib import Path
+
+      allow = {
+          line.strip()
+          for line in Path("allowed-packages.txt").read_text(encoding="utf-8").splitlines()
+          if line.strip() and not line.strip().startswith("#")
+      }
+
+      data = json.loads(Path("repo/index-v1.json").read_text(encoding="utf-8"))
+      indexed = {app["packageName"] for app in data.get("apps", [])}
+
+      print("Approved packages:", len(allow))
+      print("Indexed apps:", len(indexed))
+      print("Indexed package IDs:")
+      for package in sorted(indexed):
+          print(" -", package)
+
+      unexpected = indexed - allow
+      missing = allow - indexed
+
+      if unexpected:
+          raise SystemExit(f"ERROR: unapproved apps in index: {sorted(unexpected)}")
+
+      if missing:
+          raise SystemExit(f"ERROR: approved apps missing from index: {sorted(missing)}")
+
+      print("Index verification passed.")
+      PY
+
+  - name: Build website
+    run: |
+      npm ci
+      npm run build
+
+  - name: Merge Android repository into website
+    run: |
+      mkdir -p dist/repo
+      cp -a manhal/repo/. dist/repo/
+
+  - uses: actions/upload-pages-artifact@v3
+    with:
+      path: dist
+
+deploy:
+needs: build
+runs-on: ubuntu-latest
+environment:
+name: github-pages
+url: ${{ steps.d.outputs.page_url }}
+
+steps:
+  - id: d
+    uses: actions/deploy-pages@v4
