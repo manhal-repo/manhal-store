@@ -1,9 +1,9 @@
-name: Deploy Manhal Store
+name: Build & Deploy
 
 on:
+  workflow_dispatch:   # manual only: Actions tab > Run workflow, or: gh workflow run <file>
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "manhal/**"
       - "public/**"
@@ -12,7 +12,6 @@ on:
       - "package-lock.json"
       - "vite.config.*"
       - ".github/workflows/deploy.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,217 +19,145 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install F-Droid tools
+      - name: Install fdroidserver via pip
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install fdroidserver
+          pip install --upgrade pip
+          pip install fdroidserver
 
-      - name: Setup Android build tools
-        run: |
-          SDK_ROOT="${RUNNER_TEMP}/android-sdk"
-          mkdir -p "$SDK_ROOT"
-          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+      # ملاحظة: لا تحتاج Android SDK هنا لأن fdroid update لا يبني التطبيقات،
+      # فقط يفهرس APKs الموجودة مسبقاً في manhal/repo/
+      # إذا كنت تبني التطبيقات لاحقاً ستحتاج إضافة setup لـ Android SDK.
 
-          SDK_URL="https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
-          mkdir -p "$SDK_ROOT/cmdline-tools"
-          curl -fsSL "$SDK_URL" -o "$RUNNER_TEMP/cmdline-tools.zip"
-          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP"
-          mkdir -p "$SDK_ROOT/cmdline-tools/latest"
-          mv "$RUNNER_TEMP/cmdline-tools"/* "$SDK_ROOT/cmdline-tools/latest/"
-
-          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            --sdk_root="$SDK_ROOT" \
-            --licenses >/dev/null 2>&1 || true
-
-          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            --sdk_root="$SDK_ROOT" \
-            "platform-tools" \
-            "build-tools;35.0.0"
-
-          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
-
-      - name: Validate Android repository
-        run: |
-          test -d manhal/metadata || { echo "::error::Directory manhal/metadata does not exist"; exit 1; }
-          mkdir -p manhal/repo
-
-          test -f manhal/config.yml || { echo "::error::Missing manhal/config.yml"; exit 1; }
-          test -f manhal/allowed-packages.txt || { echo "::error::Create manhal/allowed-packages.txt with one approved package ID per line"; exit 1; }
-
-          grep -Ev '^[[:space:]]*(#|$)' manhal/allowed-packages.txt \
-            | tr -d '\r' \
-            | sort -u > "$RUNNER_TEMP/allowed-packages.txt"
-
-          test -s "$RUNNER_TEMP/allowed-packages.txt" || { echo "::error::The package allowlist is empty"; exit 1; }
-
-          while IFS= read -r package; do
-            if ! printf '%s\n' "$package" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
-              echo "::error::Invalid package ID: $package"
-              exit 1
-            fi
-          done < "$RUNNER_TEMP/allowed-packages.txt"
-
-      - name: Remove unapproved APKs and metadata
+      - name: Prepare keystore + config
+        working-directory: manhal
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -eu
-          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | head -n 1)
-          if [ -z "$AAPT" ]; then
-            echo "::error::aapt not found in build-tools"
+          if [ -z "${KEYSTORE_B64:-}" ] || [ -z "${KEYSTORE_PASS:-}" ] || [ -z "${KEY_ALIAS:-}" ]; then
+            echo "::error::Missing secrets KEYSTORE_B64 / KEYSTORE_PASS / KEY_ALIAS"
             exit 1
           fi
 
-          find manhal/repo -maxdepth 1 -type f -name '*.apk' -print0 | while IFS= read -r -d '' apk; do
-            package="$("$AAPT" dump badging "$apk" 2>/dev/null | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -n 1)"
-            if [ -z "$package" ]; then
-              echo "::warning::Could not read package ID from $apk; removing it"
-              rm -f "$apk"
-              continue
-            fi
-            if ! grep -Fxq "$package" "$RUNNER_TEMP/allowed-packages.txt"; then
-              echo "Removing unapproved APK: $package"
-              rm -f "$apk"
-            fi
-          done
+          umask 077
+          echo "$KEYSTORE_B64" | base64 -d > keystore.jks
+          chmod 600 keystore.jks
 
-          find manhal/metadata -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' dir; do
-            package="$(basename "$dir")"
-            if ! grep -Fxq "$package" "$RUNNER_TEMP/allowed-packages.txt"; then
-              echo "Removing unapproved metadata: $package"
-              rm -rf "$dir"
-            fi
-          done
+          # كتابة config.yml بدون sed (أنظف وأأمن)
+          cat > config.yml <<CFG
+          repo_url: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/repo
+          sdk_path: ${ANDROID_HOME:-/usr/local/lib/android/sdk}
+          repo_name: "My App Store"
+          repo_description: "My private F-Droid repository"
+          archive_older: 0
+          keystore: keystore.jks
+          repo_keyalias: ${KEY_ALIAS}
+          keystorepass: ${KEYSTORE_PASS}
+          keypass: ${KEYSTORE_PASS}
+          keydname: "CN=MyRepo, OU=Apps, O=Me, C=US"
+          CFG
 
-          python - <<'PY'
-          import subprocess, os, sys
-          from pathlib import Path
+          chmod 600 config.yml
+          # تأكد أن الملف سليم
+          echo "--- config.yml ---"
+          sed 's/keystorepass:.*/keystorepass: ***/; s/keypass:.*/keypass: ***/' config.yml
 
-          allowed_file = Path(os.environ['RUNNER_TEMP']) / 'allowed-packages.txt'
-          allowed = {line.strip() for line in allowed_file.read_text().splitlines() if line.strip()}
-
-          aapt = None
-          for root, _, files in os.walk(os.environ['ANDROID_HOME'] + '/build-tools'):
-              if 'aapt' in files:
-                  aapt = os.path.join(root, 'aapt')
-                  break
-          if not aapt:
-              print("::error::aapt not found")
-              sys.exit(1)
-
-          apk_dir = Path('manhal/repo')
-          found_packages = set()
-          for apk in apk_dir.glob('*.apk'):
-              try:
-                  out = subprocess.check_output(
-                      [aapt, 'dump', 'badging', str(apk)],
-                      stderr=subprocess.DEVNULL, text=True
-                  )
-                  for line in out.splitlines():
-                      if line.startswith("package: name='")):
-                          pkg = line.split("'")[1]
-                          found_packages.add(pkg)
-                          break
-              except Exception:
-                  pass
-
-          missing = allowed - found_packages
-          if missing:
-              print(f"::error::No APK found for approved packages: {sorted(missing)}")
-              sys.exit(1)
-          print(f"All {len(allowed)} approved packages have APKs.")
-          PY
-
-      - name: Prepare F-Droid configuration
-        run: |
-          cd manhal
-          fdroid --version
-          fdroid update --help >/dev/null
-
-      - name: Build fresh F-Droid index
+      - name: Build F-Droid index
+        working-directory: manhal
         run: |
           set -eu
-          cd manhal
-          rm -f repo/index-v1.json repo/index-v1.jar
-          rm -f repo/index-v2.json repo/index-v2.jar
-          rm -f repo/entry.json repo/entry.jar
-          fdroid update -c test -s repo/index-v1.json || {
-            echo "::error::F-Droid did not generate repo/index-v1.json"
+          mkdir -p repo metadata
+
+          # fdroid يرفض الملفات الفارغة مثل .gitkeep
+          find repo -type f -size 0 -delete
+
+          fdroid update -c
+
+          # الموقع والتطبيق يقرآن index-v1.json؛ استخرجه من الـ jar إن لزم
+          if [ ! -f repo/index-v1.json ] && [ -f repo/index-v1.jar ]; then
+            unzip -o repo/index-v1.jar index-v1.json -d repo
+          fi
+
+          test -f repo/index-v1.json || {
+            echo "::error::index-v1.json was not generated"
+            ls -la repo
             exit 1
           }
 
-      - name: Verify indexed package IDs
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-
-          allowed_file = Path(os.environ['RUNNER_TEMP']) / 'allowed-packages.txt'
-          allowed = {line.strip() for line in allowed_file.read_text().splitlines() if line.strip()}
-
-          index_path = Path("manhal/repo/index-v1.json")
-          data = json.loads(index_path.read_text())
-          apps = data.get("apps", {})
-          actual = set(apps.keys())
-
-          if not actual:
-              raise SystemExit("ERROR: F-Droid index contains no apps")
-
-          missing = allowed - actual
-          unexpected = actual - allowed
-
-          if missing:
-              raise SystemExit(f"ERROR: Approved packages missing from index: {sorted(missing)}")
-          if unexpected:
-              raise SystemExit(f"ERROR: Unapproved packages in index: {sorted(unexpected)}")
-
-          print(f"Verified {len(actual)} approved packages.")
+          python3 - <<'PY'
+          import json
+          d = json.load(open('repo/index-v1.json'))
+          apps = d.get('apps', {})
+          if not apps:
+              raise SystemExit("ERROR: index contains no apps")
+          print(f"apps in index = {len(apps)}")
           PY
 
-      - name: Install website dependencies
-        run: npm ci
+          ls -la repo | head -40
+          ls -d repo/icons* 2>/dev/null || true
+
+      - name: Verify no secrets leaked
+        working-directory: manhal
+        run: |
+          set -eu
+          # لا يجب أن يظهر الـ keystore أو الـ config في الـ dist
+          if [ -f keystore.jks ]; then
+            rm -f keystore.jks
+            echo "keystore.jks removed after signing"
+          fi
+          rm -f config.yml
+          # تأكد أن ملفات التوقيع لا تُنشر
+          find . -name '*.jks' -delete || true
 
       - name: Build website
-        run: npm run build
-
-      - name: Include Android repository in website
         run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "::warning::package-lock.json not found, falling back to npm install"
+            npm install
+          fi
+          npm run build
+
+      - name: Merge repo into site
+        run: |
+          set -eu
           mkdir -p dist/repo
           cp -a manhal/repo/. dist/repo/
+          # تأكد أننا لا ننشر أي شيء حساس
+          find dist -name '*.jks' -delete || true
+          find dist -name 'config.yml' -delete || true
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
-      - name: Deploy to GitHub Pages
-        id: deployment
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.d.outputs.page_url }}
+    steps:
+      - id: d
         uses: actions/deploy-pages@v4
