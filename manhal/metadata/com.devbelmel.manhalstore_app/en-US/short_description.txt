@@ -1,1 +1,0 @@
-EN: This is a rebranded fork of appteka-android by solkin, licensed under GPLv3.
