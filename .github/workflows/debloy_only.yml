@@ -50,14 +50,15 @@ jobs:
             exit 1
           fi
           
-          # اكتشاف اسم المجلد تلقائياً
+          # اكتشاف اسم المجلد وتعريفه في نفس الخطوة وفي الخطوات التالية
           if [ -d "manhal" ]; then
+            export STORE_DIR="manhal"
             echo "STORE_DIR=manhal" >> $GITHUB_ENV
           elif [ -d "fdroid" ]; then
+            export STORE_DIR="fdroid"
             echo "STORE_DIR=fdroid" >> $GITHUB_ENV
           else
             echo "::error::Neither 'manhal' nor 'fdroid' folder exists in the repository!"
-            echo "Did you commit the folder to git?"
             ls -la
             exit 1
           fi
