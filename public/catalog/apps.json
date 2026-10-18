@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "apps": [
     {
       "id": "com.devbelmel.mystore",
@@ -45,7 +44,6 @@
       ]
     }
   ]
-=======
+
   "apps": []
->>>>>>> 57dd35d (add app info)
 }
