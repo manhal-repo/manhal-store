@@ -1,14 +1,50 @@
+
 name: Add desktop release
+
 on:
   workflow_dispatch:
     inputs:
-      src_repo:    { default: "manhalbasir/UniversalPrintServer" }
-      tag:         { default: "v1.0.0" }
-      app_id:      { default: "com.devbelmel.universalprinter" }
-      app_name:    { default: "Universal Printer" }
-      version:     { default: "1.0.0" }
-      summary:     { default: "طباعة من أندرويد إلى أي طابعة عبر حاسوب ويندوز" }
-      description: { default: "برنامج ويندوز يحوّل حاسوبك إلى خادم طباعة لتطبيق Universal Printer على أندرويد. يتضمن بيئة .NET 9 فلا يحتاج تثبيتها." }
+      src_repo:
+        description: Source repository
+        type: string
+        default: "manhalbasir/UniversalPrintServer"
+        required: true
+
+      tag:
+        description: Source release tag
+        type: string
+        default: "v1.0.0"
+        required: true
+
+      app_id:
+        description: Application ID
+        type: string
+        default: "com.devbelmel.universalprinter"
+        required: true
+
+      app_name:
+        description: Application name
+        type: string
+        default: "Universal Printer"
+        required: true
+
+      version:
+        description: Application version
+        type: string
+        default: "1.0.0"
+        required: true
+
+      summary:
+        description: Short description
+        type: string
+        default: "طباعة من أندرويد إلى أي طابعة عبر حاسوب ويندوز"
+        required: true
+
+      description:
+        description: Application description
+        type: string
+        default: "برنامج ويندوز يحوّل حاسوبك إلى خادم طباعة لتطبيق Universal Printer على أندرويد. يتضمن بيئة .NET 9 فلا يحتاج تثبيتها."
+        required: true
 
 permissions:
   contents: write
@@ -17,68 +53,218 @@ permissions:
 jobs:
   add:
     runs-on: ubuntu-latest
+
     env:
       APP_ID: ${{ inputs.app_id }}
       APP_NAME: ${{ inputs.app_name }}
       VERSION: ${{ inputs.version }}
       SUMMARY: ${{ inputs.summary }}
       DESCRIPTION: ${{ inputs.description }}
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Download from source release
+    steps:
+      - name: Checkout store repository
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        run: |
+          gh --version
+
+      - name: Download source release
         env:
           GH_TOKEN: ${{ secrets.SRC_TOKEN || github.token }}
+          SRC_REPO: ${{ inputs.src_repo }}
+          TAG: ${{ inputs.tag }}
         run: |
-          gh release download "${{ inputs.tag }}" --repo "${{ inputs.src_repo }}" \
-            --pattern '*.exe' --pattern '*.AppImage' --dir dl
+          set -euo pipefail
+
+          mkdir -p dl
+
+          gh release download "$TAG" \
+            --repo "$SRC_REPO" \
+            --pattern '*.exe' \
+            --pattern '*.AppImage' \
+            --dir dl
+
+          echo "Downloaded files:"
           ls -lh dl
 
-      - name: Upload to store release "files"
+          if ! find dl -maxdepth 1 -type f | grep -q .; then
+            echo "Error: No release files were downloaded."
+            exit 1
+          fi
+
+      - name: Upload files to store release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view files >/dev/null 2>&1 || \
-            gh release create files --title Files --notes files
+          set -euo pipefail
+
+          if ! gh release view files >/dev/null 2>&1; then
+            gh release create files \
+              --title "Files" \
+              --notes "Desktop application download files"
+          fi
+
           gh release upload files dl/* --clobber
 
-      - name: Update catalog
+      - name: Update application catalog
         run: |
-          python3 - <<'EOF'
-          import json, os, hashlib
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import os
+          import json
+          import hashlib
+          import sys
+
           repo = os.environ["GITHUB_REPOSITORY"]
           app_id = os.environ["APP_ID"]
-          p = "public/catalog/apps.json"
-          data = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {"apps": []}
-          app = next((a for a in data["apps"] if a["id"] == app_id), None)
-          if not app:
-              app = {"id": app_id, "name": os.environ["APP_NAME"],
-                     "summary": "", "description": "", "categories": ["Others"],
-                     "downloads": []}
-              data["apps"].append(app)
-          if not app.get("summary"):
-              app["summary"] = os.environ["SUMMARY"]
-          if not app.get("description"):
-              app["description"] = os.environ["DESCRIPTION"]
-          for f in sorted(os.listdir("dl")):
-              osn = "windows" if f.endswith(".exe") else "linux"
-              b = open("dl/" + f, "rb").read()
-              app["downloads"] = [d for d in app["downloads"] if d["os"] != osn]
-              app["downloads"].append({
-                  "os": osn, "version": os.environ["VERSION"], "size": len(b),
-                  "sha256": hashlib.sha256(b).hexdigest(),
-                  "url": f"https://github.com/{repo}/releases/download/files/{f}"})
-          os.makedirs(os.path.dirname(p), exist_ok=True)
-          json.dump(data, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-          EOF
+          app_name = os.environ["APP_NAME"]
+          version = os.environ["VERSION"]
+          summary = os.environ["SUMMARY"]
+          description = os.environ["DESCRIPTION"]
 
-      - name: Commit and deploy
+          path = "public/catalog/apps.json"
+
+          if os.path.exists(path):
+              try:
+                  with open(path, encoding="utf-8") as f:
+                      data = json.load(f)
+              except json.JSONDecodeError as e:
+                  sys.exit(
+                      f"Invalid JSON in {path}: "
+                      f"line {e.lineno}, column {e.colno}: {e.msg}. "
+                      "Fix the catalog file and rerun the workflow."
+                  )
+          else:
+              data = {"apps": []}
+
+          if not isinstance(data, dict):
+              sys.exit("Catalog root must be a JSON object.")
+
+          if not isinstance(data.get("apps"), list):
+              sys.exit('Catalog must contain an "apps" array.')
+
+          app = next(
+              (
+                  item for item in data["apps"]
+                  if isinstance(item, dict)
+                  and item.get("id") == app_id
+              ),
+              None
+          )
+
+          if app is None:
+              app = {
+                  "id": app_id,
+                  "name": app_name,
+                  "summary": summary,
+                  "description": description,
+                  "categories": ["Others"],
+                  "downloads": []
+              }
+              data["apps"].append(app)
+          else:
+              app["name"] = app_name
+              app["summary"] = summary or app.get("summary", "")
+              app["description"] = (
+                  description or app.get("description", "")
+              )
+
+          if not isinstance(app.get("downloads"), list):
+              sys.exit(
+                  f"Invalid downloads array for application {app_id}"
+              )
+
+          for filename in sorted(os.listdir("dl")):
+              filepath = os.path.join("dl", filename)
+
+              if not os.path.isfile(filepath):
+                  continue
+
+              if filename.lower().endswith(".exe"):
+                  os_name = "windows"
+              elif filename.lower().endswith(".appimage"):
+                  os_name = "linux"
+              else:
+                  print(f"Skipping unsupported file: {filename}")
+                  continue
+
+              with open(filepath, "rb") as f:
+                  content = f.read()
+
+              download = {
+                  "os": os_name,
+                  "version": version,
+                  "size": len(content),
+                  "sha256": hashlib.sha256(content).hexdigest(),
+                  "url": (
+                      f"https://github.com/{repo}/releases/"
+                      f"download/files/{filename}"
+                  )
+              }
+
+              # Replace this OS version only.
+              # Preserve all other operating systems.
+              app["downloads"] = [
+                  item for item in app["downloads"]
+                  if not (
+                      isinstance(item, dict)
+                      and item.get("os") == os_name
+                  )
+              ]
+
+              app["downloads"].append(download)
+
+              print(
+                  f"Updated {app_id}: {os_name} "
+                  f"{version} ({len(content)} bytes)"
+              )
+
+          os.makedirs(os.path.dirname(path), exist_ok=True)
+
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(
+                  data,
+                  f,
+                  ensure_ascii=False,
+                  indent=2
+              )
+              f.write("\n")
+
+          # Validate the generated JSON.
+          with open(path, encoding="utf-8") as f:
+              json.load(f)
+
+          print(f"Catalog successfully updated: {path}")
+          PY
+
+      - name: Commit and push catalog
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add public/catalog/apps.json
-          git commit -m "Add desktop builds ${{ inputs.version }}" || echo "no changes"
-          git push
-          gh workflow run deploy.yml
+
+          if git diff --cached --quiet; then
+            echo "Catalog has no changes."
+          else
+            git commit -m "Update desktop catalog ${{ inputs.version }}"
+            git push
+          fi
+
+      - name: Trigger deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          gh workflow run deploy.yml \
+            --ref "${GITHUB_REF_NAME}"
+
+          echo "Deployment workflow dispatched."
