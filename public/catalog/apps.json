@@ -39,18 +39,21 @@
           "version": "1.7",
           "size": 5927258,
           "sha256": "207ae77d9537e42de68d02807d4b274563aac7bd00dd8703203730436e177541",
-          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/app-release-1.7.apk"
+          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/app-release-1.7.apk",
+          "uploadedAt": "2026-11-02T13:15:02Z"
         },
         {
           "os": "windows",
           "version": "1.0.6",
           "size": 80339941,
           "sha256": "5a020c82b36209485e8ed779efc99a296aabce9a54ad386943894ffdf11a991f",
-          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/uprinter-1.0.6-win-x64.exe"
+          "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/uprinter-1.0.6-win-x64.exe",
+          "uploadedAt": "2026-11-02T13:15:02Z"
         }
       ],
       "icon": "https://github.com/manhal-repo/manhal-store/releases/download/files/icon-com.devbelmel.universalprinter.png",
-      "appIconUrl": "https://github.com/manhal-repo/manhal-store/releases/download/files/icon-com.devbelmel.universalprinter.png"
+      "appIconUrl": "https://github.com/manhal-repo/manhal-store/releases/download/files/icon-com.devbelmel.universalprinter.png",
+      "updatedAt": "2026-11-02T13:15:02Z"
     }
   ]
 }
