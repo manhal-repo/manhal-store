@@ -7,3 +7,5 @@ manhal/repo/index*
 manhal/repo/entry*
 manhal/repo/icons*
 manhal/repo/diff
+backups/
+*.backup
