@@ -26,3 +26,26 @@ code{background:var(--bg);padding:8px;border-radius:8px;overflow-x:auto;display:
 .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
 .chip{border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap}
 .chip.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+
+/* ===== معرض الصور ===== */
+.gallery{margin:12px 0}
+.gallery-main{position:relative;border-radius:12px;overflow:hidden;background:var(--bg)}
+.gallery-main img{width:100%;max-height:420px;object-fit:contain;display:block}
+.gallery-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);color:#fff;border:0;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:22px;line-height:1}
+.gallery-nav.prev{left:8px}
+.gallery-nav.next{right:8px}
+.gallery-thumbs{display:flex;gap:8px;overflow-x:auto;margin-top:8px}
+.gallery-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:2px solid transparent;cursor:pointer;opacity:.7}
+.gallery-thumbs img.on{border-color:var(--pri);opacity:1}
+.video-wrap{margin:12px 0;border-radius:12px;overflow:hidden;background:#000}
+.video-wrap video,.video-wrap iframe{width:100%;display:block;aspect-ratio:16/9;border:0}
+.details{margin-top:12px;border-top:1px solid var(--bd);padding-top:12px}
+.block{display:block}
+.download-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.download-item{padding:10px;border:1px solid var(--bd);border-radius:10px}
+.dl-head{font-size:15px;margin-bottom:4px}
+.ver{background:var(--pri);color:#fff;padding:1px 8px;border-radius:999px;font-size:12px;margin-inline-start:6px}
+.sha-row{display:flex;gap:6px;align-items:center;margin:6px 0;font-size:11px;flex-wrap:wrap}
+.sha-row code.sha{background:var(--bg);padding:4px 8px;border-radius:6px;font-size:10px;word-break:break-all;direction:ltr;text-align:left;flex:1;min-width:0}
+.gplay{display:inline-block;margin:8px 0}
+.gplay img{height:48px}
