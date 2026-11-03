@@ -55,14 +55,14 @@
       "icon": "https://github.com/manhal-repo/manhal-store/releases/download/files/icon-com.devbelmel.universalprinter.png",
       "appIconUrl": "https://github.com/manhal-repo/manhal-store/releases/download/files/icon-com.devbelmel.universalprinter.png",
       "updatedAt": "2026-11-03T10:03:43Z",
-      "screenshots": [
-        "https://github.com/manhal-repo/manhal-store/releases/download/files/test-shot-1.png",
-        "https://github.com/manhal-repo/manhal-store/releases/download/files/test-shot-2.png",
-        "https://github.com/manhal-repo/manhal-store/releases/download/files/test-shot-3.png",
-        "https://github.com/manhal-repo/manhal-store/releases/download/files/test-shot-4.png",
-        "https://github.com/manhal-repo/manhal-store/releases/download/files/test-shot-5.png",
-        "https://github.com/manhal-repo/manhal-store/releases/download/files/test-shot-6.png"
-      ]
+     "screenshots": [
+  "https://github.com/manhal-repo/manhal-store/releases/download/files/test_shot_1.png",
+  "https://github.com/manhal-repo/manhal-store/releases/download/files/test_shot_2.png",
+  "https://github.com/manhal-repo/manhal-store/releases/download/files/test_shot_3.png",
+  "https://github.com/manhal-repo/manhal-store/releases/download/files/test_shot_4.png",
+  "https://github.com/manhal-repo/manhal-store/releases/download/files/test_shot_5.png",
+  "https://github.com/manhal-repo/manhal-store/releases/download/files/test_shot_6.png"
+]
     }
   ]
 }
