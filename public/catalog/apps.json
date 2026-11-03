@@ -22,7 +22,23 @@
           "size": 81667306,
           "sha256": "58967832864fb8acadd5efc1b55667ee3f3836781a7438f2e6ad8bb109d4c13b",
           "url": "https://github.com/manhal-repo/manhal-store/releases/download/files/ManhalStore-1.0.0-win-x64.exe"
+        },
+        {
+          "os": "android",
+          "version": "1.8",
+          "versionCode": 13,
+          "size": 10781273,
+          "sha256": "632f4e823fbc466ccaa60469d3120f1a033ff2dcab6ba1de3a027032af03e1a2",
+          "url": "https://manhal-repo.github.io/manhal-store/repo/com.devbelmel.mystore_13.apk"
         }
+      ],
+      "screenshots": [
+        "https://manhal-repo.github.io/manhal-store/screenshots/mystore/Screenshot_20261103-122330.png",
+        "https://manhal-repo.github.io/manhal-store/screenshots/mystore/Screenshot_20261103-133042.png",
+        "https://manhal-repo.github.io/manhal-store/screenshots/mystore/Screenshot_20261103-133156.png",
+        "https://manhal-repo.github.io/manhal-store/screenshots/mystore/Screenshot_20261103-142520.png",
+        "https://manhal-repo.github.io/manhal-store/screenshots/mystore/Screenshot_20261103-143236.png",
+        "https://manhal-repo.github.io/manhal-store/screenshots/mystore/Screenshot_20261103-143310.png"
       ]
     },
     {
